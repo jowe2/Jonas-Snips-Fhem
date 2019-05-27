@@ -740,6 +740,11 @@ sub parseJSON($$) {
     $data->{'siteId'} = $decoded->{'siteId'};
     $data->{'input'} = $decoded->{'input'};
 
+    if ($data->{'probability'}<0.7) {
+          Log3($hash->{NAME}, 1, "probabilityScore zu gering");
+          return undef;
+    }
+
     # Überprüfen ob Slot Array existiert
     if (exists($decoded->{'slots'})) {
         my @slots = @{$decoded->{'slots'}};
