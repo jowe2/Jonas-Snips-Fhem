@@ -30,6 +30,7 @@ my @topics = qw(
     hermes/nlu/intentParsed
     hermes/hotword/+/detected
     hermes/hotword/toggleOn
+    hermes/injection/onInjectionComplete
 );
 
 
@@ -57,7 +58,7 @@ sub SNIPS_execute($$$$$) {
     my ($hash, $device, $cmd, $value, $siteId) = @_;
     my $returnVal;
 
-    # Nutervariablen setzen
+    # Nutzervariablen setzen
     my $DEVICE = $device;
     my $VALUE = $value;
     my $ROOM = (defined($siteId) && $siteId eq "default") ? $hash->{helper}{defaultRoom} : $siteId;
@@ -1043,7 +1044,7 @@ sub setVolume($$) {
 }
 
 
-# Update vom Sips Model / ASR Injection
+# Update vom Snips Model / ASR Injection
 sub updateModel($) {
     my ($hash) = @_;
     my @devices = allSnipsNames();
