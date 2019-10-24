@@ -378,6 +378,7 @@ sub roomName ($$) {
         $room = $data->{'Room'};
     } else {
         $room = $data->{'siteId'};
+        $room = (split /_/, $room)[0];          #siteId wird am Trennzeichen '_' abgeschnitten, somit können Satelliten z.B. Bad_1, Bad_2 heißen und liefern trotzdem siteId "Bad" zurück
         $room = $defaultRoom if ($room eq 'default' || !(length $room));
     }
 
