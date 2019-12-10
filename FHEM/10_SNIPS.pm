@@ -671,6 +671,7 @@ sub runCmd($$$;$$) {
     Log3($hash->{NAME}, 1, $_) if (defined($error));
 
     return $returnVal;
+    readingsSingleUpdate($hash, "voiceResponse", $returnVal, 1);
 }
 
 
