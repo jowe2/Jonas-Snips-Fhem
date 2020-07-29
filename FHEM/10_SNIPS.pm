@@ -28,8 +28,8 @@ my %sets = (
 my @topics = qw(
     hermes/intent/+
     hermes/nlu/intentParsed
-    hermes/hotword/+/detected
-    hermes/hotword/toggleOn
+    hermes/dialogueManager/sessionStarted
+    hermes/dialogueManager/sessionEnded
 );
 
 
@@ -789,7 +789,7 @@ sub onmessage($$$) {
     my $input = $data->{'input'} if defined($data->{'input'});
 
     # Hotword Erkennung
-    if ($topic =~ m/^hermes\/hotword/) {
+    if ($topic =~ m/^hermes\/dialogueManager/) {
         my $data = SNIPS::parseJSON($hash, $message);
         my $room = roomName($hash, $data);
 
@@ -799,9 +799,9 @@ sub onmessage($$$) {
 
             $room =~ s/($keys)/$umlauts{$1}/g;
 
-            if ($topic =~ m/detected/) {
+            if ($topic =~ m/sessionStarted/) {
                 readingsSingleUpdate($hash, "listening_" . lc($room), 1, 1);
-            } elsif ($topic =~ m/toggleOn/) {
+            } elsif ($topic =~ m/sessionEnded/) {
                 readingsSingleUpdate($hash, "listening_" . lc($room), 0, 1);
             }
         }
