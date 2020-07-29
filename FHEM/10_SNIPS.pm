@@ -30,7 +30,6 @@ my @topics = qw(
     hermes/nlu/intentParsed
     hermes/hotword/+/detected
     hermes/hotword/toggleOn
-    hermes/injection/onInjectionComplete
 );
 
 
@@ -58,7 +57,7 @@ sub SNIPS_execute($$$$$) {
     my ($hash, $device, $cmd, $value, $siteId) = @_;
     my $returnVal;
 
-    # Nutzervariablen setzen
+    # Nutervariablen setzen
     my $DEVICE = $device;
     my $VALUE = $value;
     my $ROOM = (defined($siteId) && $siteId eq "default") ? $hash->{helper}{defaultRoom} : $siteId;
@@ -379,7 +378,6 @@ sub roomName ($$) {
         $room = $data->{'Room'};
     } else {
         $room = $data->{'siteId'};
-        $room = (split /_/, $room)[0];          #siteId wird am Trennzeichen '_' abgeschnitten, somit können Satelliten z.B. Bad_1, Bad_2 heißen und liefern trotzdem siteId "Bad" zurück
         $room = $defaultRoom if ($room eq 'default' || !(length $room));
     }
 
@@ -671,7 +669,6 @@ sub runCmd($$$;$$) {
     Log3($hash->{NAME}, 1, $_) if (defined($error));
 
     return $returnVal;
-    readingsSingleUpdate($hash, "voiceResponse", $returnVal, 1);
 }
 
 
@@ -742,11 +739,6 @@ sub parseJSON($$) {
     $data->{'sessionId'} = $decoded->{'sessionId'};
     $data->{'siteId'} = $decoded->{'siteId'};
     $data->{'input'} = $decoded->{'input'};
-
-    if ($data->{'probability'}<0.7) {
-          Log3($hash->{NAME}, 1, "probabilityScore zu gering");
-          return undef;
-    }
 
     # Überprüfen ob Slot Array existiert
     if (exists($decoded->{'slots'})) {
@@ -834,80 +826,10 @@ sub onmessage($$$) {
       respond($hash, $type, $sessionId, $response);
     }
 
-    # Sprachintent von Snips empfangen -> Geräte- und Raumnamen ersetzen und Request erneut an NLU senden
-    elsif ($topic =~ qr/^hermes\/intent\/.*:/) {
-        my $info, my $sendData;
-        my $device, my $room, my $channel, my $color, my $type;
-        my @devices = allSnipsNames();
-        my @rooms = allSnipsRooms();
-        my @channels = allSnipsChannels();
-        my @colors = allSnipsColors();
-        my @types = allSnipsTypes();
-        my $json, my $infoJson;
-        my $sessionId;
-        my $command = $data->{'input'};
-
-        # Geräte- und Raumbezeichnungen im Kommando gegen die Defaultbezeichnung aus dem Snips-Slot tauschen, damit NLU uns versteht
-        # Alle Werte in ein Array und der Länge nach sortieren, damit z.B. "Jazz Radio" nicht fehlerhafterweise als "Radio" erkannt wird
-        my @keys = (@devices, @rooms, @channels, @colors, @types);
-        my @sortedKeys = sort { length($b) <=> length($a) } @keys;
-
-        foreach my $key (@sortedKeys) {
-            if ($command =~ qr/$key/i) {
-                if (grep( /^$key$/, @devices)) {
-                    $device = lc($key);
-                    $command =~ s/$key/standardgerät/i;
-                }
-                elsif ( grep( /^$key$/, @rooms ) ) {
-                    $room = lc($key);
-                    $command =~ s/$key/standardraum/i;
-                }
-                elsif ( grep( /^$key$/, @channels ) ) {
-                    $channel = lc($key);
-                    $command =~ s/$key/standardsender/i;
-                }
-                elsif ( grep( /^$key$/, @colors ) ) {
-                    $color = lc($key);
-                    $command =~ s/$key/standardfarbe/i;
-                }
-                elsif ( grep( /^$key$/, @types ) ) {
-                    $type = lc($key);
-                    $command =~ s/$key/standardtyp/i;
-                }
-            }
-        }
-
-        # Info Hash wird mit an NLU übergeben um die Rückmeldung später dem Request zuordnen zu können
-        $info = {
-            input       => $data->{'input'},
-            sessionId   => $data->{'sessionId'},
-            siteId      => $data->{'siteId'},
-            Device      => $device,
-            Room        => $room,
-            Channel     => $channel,
-            Color       => $color,
-            Type        => $type
-        };
-        $infoJson = toJSON($info);
-
-        # Message an NLU Senden
-        $sessionId = ($topic eq "hermes/intent/FHEM:TextCommand") ? "fhem.textCommand" :"fhem.voiceCommand";
-        $sendData =  {
-            sessionId => $sessionId,
-            input => $command,
-            id => $infoJson
-        };
-
-        $json = toJSON($sendData);
-        MQTT::send_publish($hash->{IODev}, topic => 'hermes/nlu/query', message => $json, qos => 0, retain => "0");
-
-        Log3($hash->{NAME}, 5, "sending message to NLU: " . $json);
-    }
-
     # Intent von NLU empfangen
-    elsif ($topic eq "hermes/nlu/intentParsed" && ($message =~ m/fhem.voiceCommand/ || $message =~ m/fhem.textCommand/)) {
+    elsif ($topic eq "hermes/nlu/intentParsed" && ($message !~ m/fhem.voiceCommand/ || $message =~ m/fhem.textCommand/)) {
         my $intent;
-        my $type = ($message =~ m/fhem.voiceCommand/) ? "voice" : "text";
+        my $type = ($message =~ m/fhem.textCommand/) ? "text" : "voice";
 
         $data->{'requestType'} = $type;
         $intent = $data->{'intent'};
@@ -970,9 +892,9 @@ sub getResponse($$) {
     my $response;
 
     my %messages = (
-        DefaultError => "Da ist etwas schief gegangen.",
-        NoActiveMediaDevice => "Kein Wiedergabegerät aktiv.",
-        DefaultConfirmation => "Ok."
+        DefaultError => "Da ist etwas schief gegangen",
+        NoActiveMediaDevice => "Kein Wiedergabegerät aktiv",
+        DefaultConfirmation => "Okay"
     );
 
     $response = getCmd($hash, $hash->{NAME}, "response", $identifier);
@@ -1045,7 +967,7 @@ sub setVolume($$) {
 }
 
 
-# Update vom Snips Model / ASR Injection
+# Update vom Sips Model / ASR Injection
 sub updateModel($) {
     my ($hash) = @_;
     my @devices = allSnipsNames();
@@ -1174,13 +1096,13 @@ sub handleIntentSetOnOff($$) {
             my $cmdOff = (defined($mapping->{'cmdOff'})) ? $mapping->{'cmdOff'} : "off";
             my $cmd = ($value eq 'an') ? $cmdOn : $cmdOff;
 
+            # Cmd ausführen
+            runCmd($hash, $device, $cmd);
+            
             # Antwort bestimmen
             $numericValue = ($value eq 'an') ? 1 : 0;
             if (defined($mapping->{'response'})) { $response = getValue($hash, $device, $mapping->{'response'}, $numericValue, $room); }
             else { $response = getResponse($hash, "DefaultConfirmation"); }
-
-            # Cmd ausführen
-            runCmd($hash, $device, $cmd);
         }
     }
     # Antwort senden
@@ -1316,12 +1238,12 @@ sub handleIntentSetNumeric($$) {
                     $newVal = $minVal if (defined($minVal) && $newVal < $minVal);
                     $newVal = $maxVal if (defined($maxVal) && $newVal > $maxVal);
 
+                    # Cmd ausführen
+                    runCmd($hash, $device, $cmd, $newVal);
+                    
                     # Antwort festlegen
                     if (defined($mapping->{'response'})) { $response = getValue($hash, $device, $mapping->{'response'}, $newVal, $room); }
                     else { $response = getResponse($hash, "DefaultConfirmation"); }
-
-                    # Cmd ausführen
-                    runCmd($hash, $device, $cmd, $newVal);
                 }
             }
         }
@@ -1462,11 +1384,12 @@ sub handleIntentMediaControls($$) {
             elsif ($command =~ m/^zurück$/i) { $cmd = $mapping->{'cmdBack'}; }
 
             if (defined($cmd)) {
-                if (defined($mapping->{'response'})) { $response = getValue($hash, $device, $mapping->{'response'}, $command, $room); }
-                else { $response = getResponse($hash, "DefaultConfirmation"); }
-
                 # Cmd ausführen
                 runCmd($hash, $device, $cmd);
+                
+                # Antwort festlegen
+                if (defined($mapping->{'response'})) { $response = getValue($hash, $device, $mapping->{'response'}, $command, $room); }
+                else { $response = getResponse($hash, "DefaultConfirmation"); }
             }
         }
     }
